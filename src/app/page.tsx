@@ -41,6 +41,14 @@ type NewMember = {
   investment: string; // keep as string for controlled input
 };
 
+type MemberApi = {
+  id?: number | string;
+  name?: string;
+  shares?: number | string;
+  contribution?: number | string;
+  initialInvestment?: number | string;
+};
+
 type TransactionType = "deposit" | "withdraw" | null;
 
 // ---------------- Helpers ----------------
@@ -59,7 +67,7 @@ const formatMoney = (n: number) => {
 
 // ---------------- Component ----------------
 export default function InvestmentPoolTracker() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [poolData, setPoolData] = useState<PoolData>({
     currentValue: 0,
     totalShares: 0,
@@ -101,10 +109,10 @@ export default function InvestmentPoolTracker() {
       }
       const response = await res.json();
 
-      // Expect response in shape { success: boolean, data: { totalPool, members: [{ id, name, shares, contribution|initialInvestment }]}}
       if (response && response.success && response.data) {
         const apiData = response.data;
-        const membersFromApi = Array.isArray(apiData.members)
+
+        const membersFromApi: MemberApi[] = Array.isArray(apiData.members)
           ? apiData.members
           : [];
 
@@ -112,10 +120,10 @@ export default function InvestmentPoolTracker() {
           currentValue: Number(apiData.totalPool) || 0,
           totalShares:
             membersFromApi.reduce(
-              (sum: number, m: unknown) => sum + Number(m.shares || 0),
+              (sum: number, m: MemberApi) => sum + Number(m.shares || 0),
               0
             ) || 0,
-          members: membersFromApi.map((m: unknown, index: number) => ({
+          members: membersFromApi.map((m: MemberApi, index: number) => ({
             id: Number(m.id ?? index + 1),
             name: String(m.name ?? "Unknown"),
             shares: Number(m.shares ?? 0),
@@ -127,12 +135,15 @@ export default function InvestmentPoolTracker() {
 
         if (mountedRef.current) setPoolData(transformed);
       } else if (response && response.data) {
-        // fallback if success flag missing
         if (mountedRef.current) setPoolData(response.data as PoolData);
       }
     } catch (err: unknown) {
       console.error("Error fetching pool data:", err);
-      setErrorMessage(err?.message ?? "Unable to fetch pool data");
+      if (err instanceof Error) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage("Unable to fetch pool data");
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
     }
