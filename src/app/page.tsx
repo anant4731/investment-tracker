@@ -16,7 +16,6 @@ import {
   Trash2,
   ArrowUpCircle,
   ArrowDownCircle,
-  User,
   LogOut,
   X,
   AlertCircle,
@@ -113,10 +112,10 @@ export default function InvestmentPoolTracker() {
           currentValue: Number(apiData.totalPool) || 0,
           totalShares:
             membersFromApi.reduce(
-              (sum: number, m: any) => sum + Number(m.shares || 0),
+              (sum: number, m: unknown) => sum + Number(m.shares || 0),
               0
             ) || 0,
-          members: membersFromApi.map((m: any, index: number) => ({
+          members: membersFromApi.map((m: unknown, index: number) => ({
             id: Number(m.id ?? index + 1),
             name: String(m.name ?? "Unknown"),
             shares: Number(m.shares ?? 0),
@@ -131,7 +130,7 @@ export default function InvestmentPoolTracker() {
         // fallback if success flag missing
         if (mountedRef.current) setPoolData(response.data as PoolData);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching pool data:", err);
       setErrorMessage(err?.message ?? "Unable to fetch pool data");
     } finally {
@@ -256,7 +255,7 @@ export default function InvestmentPoolTracker() {
 
       // server should return canonical pool state; if not, just refetch
       await fetchPoolData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Add member error:", err);
       setErrorMessage(
         "Failed to persist new member on server — changes remain locally."
@@ -311,7 +310,7 @@ export default function InvestmentPoolTracker() {
 
       // server should return updated pool — refresh to be safe
       await fetchPoolData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete member error:", err);
       setErrorMessage(
         "Failed to delete member on server — changes remain locally."
@@ -421,7 +420,7 @@ export default function InvestmentPoolTracker() {
 
         // refresh authoritative state
         await fetchPoolData();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Transaction error:", err);
         setErrorMessage(
           "Transaction failed on server — changes remain locally."

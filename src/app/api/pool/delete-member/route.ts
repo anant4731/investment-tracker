@@ -5,6 +5,26 @@ import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 const TABLE_NAME = "investment-tracker";
 
+// ---------------- Types ----------------
+type Member = {
+  id: string;
+  name: string;
+  shares: number;
+  initialInvestment: number;
+};
+
+type PoolData = {
+  members: Member[];
+  totalShares: number;
+  currentValue: number;
+};
+
+type DBItem = {
+  id: string;
+  poolData: PoolData;
+};
+
+// ---------------- Handler ----------------
 export async function DELETE(req: Request) {
   try {
     const { id } = await req.json();
@@ -25,17 +45,18 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Pool data not found" }, { status: 404 });
     }
 
-    const poolData = result.Item.poolData;
+    const dbItem = result.Item as DBItem;
+    const poolData = dbItem.poolData;
 
     // Filter out the member
-    const updatedMembers = poolData.members.filter((m: any) => m.id !== id);
+    const updatedMembers = poolData.members.filter((m: Member) => m.id !== id);
 
     if (updatedMembers.length === poolData.members.length) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
     // Recalculate totals
-    const totalShares = updatedMembers.reduce((sum: number, m: any) => sum + m.shares, 0);
+    const totalShares = updatedMembers.reduce((sum, m) => sum + m.shares, 0);
     const currentValue = poolData.currentValue ?? 0;
 
     // Update DynamoDB
@@ -43,7 +64,7 @@ export async function DELETE(req: Request) {
       new PutCommand({
         TableName: TABLE_NAME,
         Item: {
-          ...result.Item,
+          ...dbItem,
           poolData: {
             ...poolData,
             members: updatedMembers,
