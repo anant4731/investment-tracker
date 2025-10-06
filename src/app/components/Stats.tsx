@@ -14,13 +14,11 @@ import {
   PieChart,
   Plus,
   Trash2,
-  LogOut,
   X,
   AlertCircle,
 } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
-// ---------------- UUID Generator ----------------
 const generateUUID = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -32,8 +30,6 @@ const generateUUID = (): string => {
   });
 };
 
-
-// ---------------- Types ----------------
 type Member = {
   id: string;
   name: string;
@@ -77,18 +73,6 @@ const formatMoney = (n: number) => {
   });
 };
 
-/**
- * Determine the share price to use when issuing shares for a new member.
- *
- * Rules implemented:
- * - If the pool currently has 0 totalShares -> use base share price = 1.
- * - If the user provided a portfolioValueAtTime:
- *    - If pv === 0 -> treat as "joined when pool had zero value" -> use share price = 1
- *    - If pv > 0 and pool has totalShares > 0 -> attempt candidate = pv / totalShares
- *      (if candidate is sensible use it)
- * - Otherwise fall back to current share price = currentValue / totalShares (if > 0)
- * - Final fallback -> 1
- */
 const determineSharePriceForNewMember = (
   portfolioValueAtTime: number | undefined | null,
   poolDataLocal: PoolData
@@ -98,21 +82,17 @@ const determineSharePriceForNewMember = (
     : NaN;
   const totalShares = poolDataLocal.totalShares || 0;
 
-  // If there are no existing shares, start with a base share price of 1.
   if (totalShares === 0) {
     return 1;
   }
 
-  // If user supplied a portfolio snapshot
   if (Number.isFinite(pv)) {
-    // Explicitly provided zero means "pool was zero at that time" — issue shares at base price
     if (pv === 0) return 1;
 
     const candidate = pv / totalShares;
     if (Number.isFinite(candidate) && candidate > 0) return candidate;
   }
 
-  // Fallback to current share price
   const currentCandidate = poolDataLocal.currentValue / totalShares;
   if (isFinite(currentCandidate) && currentCandidate > 0)
     return currentCandidate;
@@ -120,7 +100,6 @@ const determineSharePriceForNewMember = (
   return 1;
 };
 
-// ---------------- Component ----------------
 export default function Stats() {
   const { status } = useSession();
   const [poolData, setPoolData] = useState<PoolData>({
@@ -140,9 +119,6 @@ export default function Stats() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
-
-  // Periodic fetch (keeps currentValue up to date with Binance). This will not
-  // be used for share issuance if the user provides a portfolio snapshot.
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -174,14 +150,30 @@ export default function Stats() {
     try {
       setLoading(true);
       setErrorMessage(null);
-      const res = await fetch("/api/pool");
-      if (!res.ok) {
-        const err = await res
+
+      // Fetch both in parallel
+      const [poolRes, binanceRes] = await Promise.all([
+        fetch("/api/pool"),
+        fetch("/api/binance"),
+      ]);
+
+      // Handle pool data
+      if (!poolRes.ok) {
+        const err = await poolRes
           .json()
           .catch(() => ({ message: "Failed to fetch" }));
         throw new Error(err.message || "Failed to fetch pool data");
       }
-      const response = await res.json();
+      const response = await poolRes.json();
+
+      // Get current value from Binance if available
+      let currentValue = 0;
+      if (binanceRes.ok) {
+        const binanceData = await binanceRes.json();
+        if (binanceData.success) {
+          currentValue = binanceData.totalValueUSDT;
+        }
+      }
 
       if (response && response.success && response.poolData) {
         const apiData = response.poolData;
@@ -190,7 +182,7 @@ export default function Stats() {
           : [];
 
         const transformed: PoolData = {
-          currentValue: Number(apiData.totalPool) || 0,
+          currentValue: currentValue || Number(apiData.totalPool) || 0, // Use Binance data first
           totalShares:
             membersFromApi.reduce(
               (sum: number, m: MemberApi) => sum + Number(m.shares || 0),
@@ -280,7 +272,6 @@ export default function Stats() {
     [calculateSharePrice, poolData.totalShares]
   );
 
-  // ---------------- Add Member with UUID ----------------
   const addMember = useCallback(async () => {
     const name = newMember.name.trim();
     const investment = parseFloat(newMember.investment || "0");
@@ -300,7 +291,6 @@ export default function Stats() {
       return;
     }
 
-    // Use dedicated helper to choose the correct share price for this addition.
     let sharePrice = determineSharePriceForNewMember(
       portfolioValueAtTime,
       poolData
@@ -325,7 +315,6 @@ export default function Stats() {
             : undefined,
       };
 
-      // Optimistic UI update: add the member and increase totalShares and currentValue
       setPoolData((prev) => ({
         currentValue: prev.currentValue + investment,
         totalShares: prev.totalShares + sharesToReceive,
@@ -361,8 +350,6 @@ export default function Stats() {
       );
     }
   }, [newMember, fetchPoolData, poolData]);
-
-  // ---------------- Delete Member ----------------
   const confirmDeleteMember = (memberId: string) => {
     const member = poolData.members.find((m) => m.id === memberId) ?? null;
     if (!member) return;
@@ -413,12 +400,6 @@ export default function Stats() {
     }
   }, [memberToDelete, fetchPoolData, getMemberStats]);
 
-  // ---------------- Sign Out Handler ----------------
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: "/login" });
-  };
-
-  // ---------------- Derived values ----------------
   const totalInvested = useMemo(
     () =>
       poolData.members.reduce((sum, m) => sum + (m.initialInvestment || 0), 0),
@@ -433,7 +414,6 @@ export default function Stats() {
       ? ((totalProfit / totalInvested) * 100).toFixed(2)
       : "0.00";
 
-  // share price to use for new member preview (uses portfolioValueAtTime when provided)
   const sharePriceForNewMember = useMemo(() => {
     const pv = newMember.portfolioValueAtTime
       ? parseFloat(newMember.portfolioValueAtTime)
@@ -446,7 +426,6 @@ export default function Stats() {
     poolData.totalShares,
   ]);
 
-  // ---------------- Loading State ----------------
   if (loading || status === "loading") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
@@ -461,34 +440,12 @@ export default function Stats() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">
-              Investment Pool Manager
-            </h1>
-            <p className="text-slate-600">
-              Professional multi-investor portfolio tracking
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 rounded-xl border border-slate-200 hover:border-red-200 transition-all shadow-sm group"
-            >
-              <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-            </button>
-          </div>
-        </div>
-
-        {/* Error message */}
         {errorMessage && (
           <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-900">
             {errorMessage}
           </div>
         )}
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
             <div className="flex items-center justify-between mb-2">
@@ -545,7 +502,6 @@ export default function Stats() {
           </div>
         </div>
 
-        {/* Members List */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
           <div className="p-6 border-b border-slate-200">
             <div className="flex items-center justify-between">
@@ -650,7 +606,6 @@ export default function Stats() {
           </div>
         </div>
 
-        {/* Add Member Modal */}
         {showAddMember && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-200">

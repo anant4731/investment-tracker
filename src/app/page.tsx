@@ -1,8 +1,10 @@
 import ProtectedRoute from "./components/ProtectedRoute"
-import Stats from "./components/Stats"
+import Dashboard from "./components/Dashboard"
+import Navbar from "./components/Navbar"
 
 export default function MainPage() {
   return <ProtectedRoute>
-    <Stats></Stats>
+    <Navbar></Navbar>
+    <Dashboard></Dashboard>
   </ProtectedRoute>
 }
