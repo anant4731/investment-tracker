@@ -16,6 +16,8 @@ import {
   Trash2,
   X,
   AlertCircle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
@@ -117,6 +119,9 @@ export default function Stats() {
   });
   const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // show/hide all displayed numeric values (mask with **** when false)
+  const [showValues, setShowValues] = useState(false);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -350,6 +355,7 @@ export default function Stats() {
       );
     }
   }, [newMember, fetchPoolData, poolData]);
+
   const confirmDeleteMember = (memberId: string) => {
     const member = poolData.members.find((m) => m.id === memberId) ?? null;
     if (!member) return;
@@ -419,12 +425,11 @@ export default function Stats() {
       ? parseFloat(newMember.portfolioValueAtTime)
       : undefined;
     return determineSharePriceForNewMember(pv, poolData);
-  }, [
-    newMember.portfolioValueAtTime,
-    newMember.investment,
-    poolData.currentValue,
-    poolData.totalShares,
-  ]);
+  }, [newMember.portfolioValueAtTime, newMember.investment, poolData]);
+
+  // Mask helper
+  const mask = (value: string | number) =>
+    showValues ? String(value) : "****";
 
   if (loading || status === "loading") {
     return (
@@ -439,12 +444,37 @@ export default function Stats() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto">
         {errorMessage && (
           <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-900">
             {errorMessage}
           </div>
         )}
+
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowValues((v) => !v)}
+            className="group relative flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-slate-50 to-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-md transition-all duration-200 overflow-hidden"
+            title={showValues ? "Hide values" : "Show values"}
+          >
+            {/* Animated background on hover */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+
+            {/* Icon with animation */}
+            <div className="relative z-10 transition-transform duration-200 group-hover:scale-110">
+              {showValues ? (
+                <EyeOff className="w-4 h-4 text-slate-600 group-hover:text-indigo-600" />
+              ) : (
+                <Eye className="w-4 h-4 text-slate-600 group-hover:text-indigo-600" />
+              )}
+            </div>
+
+            {/* Text */}
+            <span className="relative z-10 text-sm font-medium text-slate-700 group-hover:text-indigo-700 transition-colors duration-200">
+              {showValues ? "Hide Values" : "Show Values"}
+            </span>
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
@@ -455,7 +485,7 @@ export default function Stats() {
               <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
             <div className="text-3xl font-bold text-slate-900">
-              ${formatMoney(poolData.currentValue)}
+              {mask(`$${formatMoney(poolData.currentValue)}`)}
             </div>
           </div>
 
@@ -467,9 +497,9 @@ export default function Stats() {
               <TrendingUp className="w-5 h-5 text-green-600" />
             </div>
             <div className="text-3xl font-bold text-green-600">
-              ${formatMoney(totalProfit)}
+              {mask(`$${formatMoney(totalProfit)}`)}
             </div>
-            <div className="text-sm text-slate-600 mt-1">
+            <div className="text-sm text-green-600 mt-1">
               {profitPercent}% return
             </div>
           </div>
@@ -482,7 +512,7 @@ export default function Stats() {
               <PieChart className="w-5 h-5 text-purple-600" />
             </div>
             <div className="text-3xl font-bold text-slate-900">
-              ${formatMoney(totalInvested)}
+              {mask(`$${formatMoney(totalInvested)}`)}
             </div>
           </div>
 
@@ -494,26 +524,24 @@ export default function Stats() {
               <Users className="w-5 h-5 text-orange-600" />
             </div>
             <div className="text-3xl font-bold text-slate-900">
-              {poolData.members.length}
+              {mask(poolData.members.length)}
             </div>
             <div className="text-sm text-slate-600 mt-1">
-              ${safeRound(calculateSharePrice(), 4).toFixed(4)}/share
+              {mask(`$${safeRound(calculateSharePrice(), 4).toFixed(4)}/share`)}
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
-          <div className="p-6 border-b border-slate-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900">Pool Members</h2>
-              <button
-                onClick={() => setShowAddMember(true)}
-                className="cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="font-medium">Add Member</span>
-              </button>
-            </div>
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">Members</h2>
+            <button
+              onClick={() => setShowAddMember(true)}
+              className="cursor-pointer flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="font-medium">Add</span>
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -561,20 +589,25 @@ export default function Stats() {
                           </span>
                         </div>
                       </td>
+
                       <td className="px-6 py-4 text-right font-medium text-slate-900">
-                        {safeRound(member.shares, 2).toFixed(2)}
+                        {mask(safeRound(member.shares, 2).toFixed(2))}
                       </td>
+
                       <td className="px-6 py-4 text-right">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                          {stats.ownership}%
+                          {mask(`${stats.ownership}%`)}
                         </span>
                       </td>
+
                       <td className="px-6 py-4 text-right text-slate-600">
-                        ${formatMoney(member.initialInvestment)}
+                        {mask(`$${formatMoney(member.initialInvestment)}`)}
                       </td>
+
                       <td className="px-6 py-4 text-right font-semibold text-slate-900">
-                        ${formatMoney(stats.currentValue)}
+                        {mask(`$${formatMoney(stats.currentValue)}`)}
                       </td>
+
                       <td className="px-6 py-4 text-right">
                         <div
                           className={`font-semibold ${
@@ -583,10 +616,11 @@ export default function Stats() {
                               : "text-red-600"
                           }`}
                         >
-                          ${formatMoney(stats.profit)}
+                          {mask(`$${formatMoney(stats.profit)}`)}
                           <div className="text-xs">{stats.profitPercent}%</div>
                         </div>
                       </td>
+
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -722,7 +756,11 @@ export default function Stats() {
                               : "Current share price:"}
                           </span>
                           <span className="font-semibold text-slate-900">
-                            ${safeRound(sharePriceForNewMember, 4).toFixed(4)}
+                            {mask(
+                              `$${safeRound(sharePriceForNewMember, 4).toFixed(
+                                4
+                              )}`
+                            )}
                           </span>
                         </div>
                         {newMember.investment &&
@@ -730,14 +768,16 @@ export default function Stats() {
                             <div className="flex justify-between pt-2 border-t border-blue-200">
                               <span>Shares to receive:</span>
                               <span className="font-bold text-blue-600">
-                                {safeRound(
-                                  parseFloat(newMember.investment) /
-                                    (sharePriceForNewMember <= 0 ||
-                                    !isFinite(sharePriceForNewMember)
-                                      ? 1
-                                      : sharePriceForNewMember),
-                                  2
-                                ).toFixed(2)}{" "}
+                                {mask(
+                                  safeRound(
+                                    parseFloat(newMember.investment) /
+                                      (sharePriceForNewMember <= 0 ||
+                                      !isFinite(sharePriceForNewMember)
+                                        ? 1
+                                        : sharePriceForNewMember),
+                                    2
+                                  ).toFixed(2)
+                                )}{" "}
                                 shares
                               </span>
                             </div>
@@ -826,22 +866,23 @@ export default function Stats() {
                     <div className="flex justify-between">
                       <span className="text-slate-600">Current Value:</span>
                       <span className="font-semibold text-slate-900">
-                        $
-                        {formatMoney(
-                          getMemberStats(memberToDelete).currentValue
+                        {mask(
+                          `$${formatMoney(
+                            getMemberStats(memberToDelete).currentValue
+                          )}`
                         )}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Shares Owned:</span>
                       <span className="font-semibold text-slate-900">
-                        {safeRound(memberToDelete.shares, 2).toFixed(2)}
+                        {mask(safeRound(memberToDelete.shares, 2).toFixed(2))}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-600">Ownership:</span>
                       <span className="font-semibold text-slate-900">
-                        {getMemberStats(memberToDelete).ownership}%
+                        {mask(getMemberStats(memberToDelete).ownership + "%")}
                       </span>
                     </div>
                   </div>

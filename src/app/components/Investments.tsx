@@ -11,72 +11,34 @@ interface Investment {
   currentPrice: number;
   color: string;
   icon: string;
-}
-
-interface InvestmentStats {
-  invested: number;
-  currentValue: number;
-  profit: number;
-  profitPercent: string;
+  profit?: number;
+  profitPercent?: string;
 }
 
 export default function Investments() {
-  const [investments, setInvestments] = useState<Investment[]>([
-    {
-      id: 1,
-      symbol: "BTC",
-      name: "Bitcoin",
-      amount: 0.5,
-      avgBuyPrice: 45000,
-      currentPrice: 67000,
-      color: "from-orange-500 to-yellow-600",
-      icon: "₿",
-    },
-    {
-      id: 2,
-      symbol: "SOL",
-      name: "Solana",
-      amount: 150,
-      avgBuyPrice: 85,
-      currentPrice: 142,
-      color: "from-purple-500 to-pink-600",
-      icon: "◎",
-    },
-    {
-      id: 3,
-      symbol: "USDT",
-      name: "Tether",
-      amount: 5000,
-      avgBuyPrice: 1,
-      currentPrice: 1,
-      color: "from-green-500 to-emerald-600",
-      icon: "₮",
-    },
-  ]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch investments on mount and refresh every 10 seconds
   useEffect(() => {
-    // fetchInvestments();
-    // const interval = setInterval(() => {
-    //   fetchInvestments();
-    // }, 10000);
-    // return () => clearInterval(interval);
+    fetchInvestments();
+    const interval = setInterval(fetchInvestments, 10000); // auto refresh every 10s
+    return () => clearInterval(interval);
   }, []);
 
-  // const fetchInvestments = async (): Promise<void> => {
-  //   try {
-  //     setIsRefreshing(true);
-  //     const response = await fetch('/api/investments');
-  //     const data: Investment[] = await response.json();
-  //     setInvestments(data);
-  //   } catch (error) {
-  //     console.error('Failed to fetch investments:', error);
-  //   } finally {
-  //     setIsRefreshing(false);
-  //   }
-  // };
+  const fetchInvestments = async (): Promise<void> => {
+    try {
+      setIsRefreshing(true);
+      const response = await fetch("/api/binance/open-trades");
+      const data = await response.json();
+      setInvestments(data);
+    } catch (error) {
+      console.error("Failed to fetch investments:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
-  const calculateStats = (investment: Investment): InvestmentStats => {
+  const calculateStats = (investment: Investment) => {
     const invested = investment.amount * investment.avgBuyPrice;
     const currentValue = investment.amount * investment.currentPrice;
     const profit = currentValue - invested;
@@ -84,9 +46,17 @@ export default function Investments() {
     return { invested, currentValue, profit, profitPercent };
   };
 
+  if (investments.length === 0) {
+    return (
+      <div className="p-8 text-center text-slate-500">
+        No open positions found.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {investments.map((investment) => {
           const stats = calculateStats(investment);
           const isProfit = stats.profit >= 0;
@@ -94,131 +64,98 @@ export default function Investments() {
           return (
             <div
               key={investment.id}
-              className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all duration-300 cursor-pointer group"
+              className="bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-all duration-200"
             >
-              {/* Card Header */}
-              <div className="p-5 border-b border-slate-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div
-                    className={`w-14 h-14 bg-gradient-to-br ${investment.color} rounded-xl flex items-center justify-center text-white text-2xl font-bold shadow-md group-hover:scale-110 transition-transform duration-300`}
-                  >
-                    {investment.icon}
+              <div className="p-6 space-y-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      {investment.symbol}
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      {investment.name}
+                    </p>
                   </div>
                   <div
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    className={`px-2.5 py-1 rounded text-xs font-medium ${
                       isProfit
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-700"
                     }`}
                   >
                     {isProfit ? "+" : ""}
                     {stats.profitPercent}%
                   </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">
-                    {investment.name}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-slate-600 font-medium">
-                      {investment.symbol}
-                    </span>
-                    <span className="text-xs text-slate-400">•</span>
-                    <span className="text-sm text-slate-600">
-                      {investment.amount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 4,
-                      })}
-                    </span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Card Body */}
-              <div className="p-5 space-y-4">
-                {/* Current Value */}
-                <div>
-                  <div className="text-xs text-slate-500 font-medium mb-1">
-                    Current Value
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    $
-                    {stats.currentValue.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </div>
-                </div>
-
-                {/* Price Info */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
                   <div>
-                    <div className="text-xs text-slate-500 font-medium mb-1">
-                      Avg Buy
+                    <div className="text-xs text-slate-500 mb-1">
+                      Current Value
                     </div>
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="text-2xl font-semibold text-slate-900">
                       $
-                      {investment.avgBuyPrice.toLocaleString(undefined, {
+                      {(investment.amount * investment.currentPrice).toLocaleString(undefined, {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium mb-1">
-                      Current
-                    </div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      $
-                      {investment.currentPrice.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Profit/Loss */}
-                <div className="pt-3 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">
-                      Profit/Loss
-                    </span>
-                    <div
-                      className={`flex items-center gap-1 font-bold ${
-                        isProfit ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {isProfit ? (
-                        <TrendingUp className="w-4 h-4" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4" />
-                      )}
-                      <span>
-                        {isProfit ? "+" : ""}$
-                        {Math.abs(stats.profit).toLocaleString(undefined, {
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">
+                        Holdings
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {investment.amount.toLocaleString(undefined, {
                           minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
+                          maximumFractionDigits: 4,
                         })}
-                      </span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1 text-right">
+                        Avg Price
+                      </div>
+                      <div className="text-sm font-medium text-slate-900 text-right">
+                        ${investment.avgBuyPrice.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1 text-right">
+                        Current Price
+                      </div>
+                      <div className="text-sm font-medium text-slate-900 text-right">
+                        ${investment.currentPrice.toFixed(2)}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
-                  <div className="mt-2 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full bg-gradient-to-r ${
-                        isProfit
-                          ? "from-green-500 to-emerald-600"
-                          : "from-red-500 to-red-600"
-                      } transition-all duration-500`}
-                      style={{
-                        width: `${Math.min(
-                          Math.abs(parseFloat(stats.profitPercent)),
-                          100
-                        )}%`,
-                      }}
-                    />
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
+                        Profit/Loss
+                      </span>
+                      <div
+                        className={`flex items-center gap-1.5 font-semibold ${
+                          isProfit ? "text-emerald-600" : "text-red-600"
+                        }`}
+                      >
+                        {isProfit ? (
+                          <TrendingUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <TrendingDown className="w-3.5 h-3.5" />
+                        )}
+                        <span className="text-sm">
+                          {isProfit ? "+" : ""}$
+                          {Math.abs(stats.profit).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
